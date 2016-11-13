@@ -1,0 +1,8 @@
+{
+    "hosts": ["10.0.0.7"],
+    "port": 22,
+    "user": "user1",
+    "password": "testpassword",
+    "admin_group": "sudo",
+    "admin_user": "user1"
+}
