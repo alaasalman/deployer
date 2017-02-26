@@ -1,8 +1,14 @@
 {
-    "hosts": ["10.0.0.7"],
+  "default": {
+    "hosts": [
+      "10.0.0.7"
+    ],
     "port": 22,
     "user": "user1",
     "password": "testpassword",
     "admin_group": "sudo",
-    "admin_user": "user1"
+    "admin_user": "user1",
+    "app_name": "appone"
+
+  }
 }
