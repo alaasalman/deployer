@@ -1,41 +1,69 @@
 #!/usr/bin/env python
 import json
+from os import path
 
-from fabric.api import *
+from fabric.api import (sudo, settings, require,
+                        cd, env, task,
+                        local, run)
 from fabric.colors import yellow, red, green
-from fabric.contrib.files import *
+from fabric.context_managers import shell_env, prefix, hide
+from fabric.contrib.files import append, sed, put, exists
+from fabric.utils import abort, warn
+
+# use ssh config attribs in $HOME
+env.use_ssh_config = True
+# make sure bash session is interactive to load aliases
+env.shell = '/bin/bash -l -i -c'
+# load config only once
+env.config_loaded = False
 
 
-def _install_package(pkg_name):
-    with settings(hide('warnings', 'stderr'), warn_only=True):
-        result = sudo('dpkg-query --show {0}'.format(pkg_name))
+def print_with_attention(msg):
+    """
+    Print supplied message within ascii marks to bring the user's attention to it.
+    :param msg: str to print and alert user of
+    """
+    print(yellow("=" * len(msg)))
+    print(yellow(msg))
+    print(yellow("=" * len(msg)))
 
-    if result.failed is False:
-        warn('{0} is already installed'.format(pkg_name))
-    else:
-        sudo('apt -y install {0}'.format(pkg_name))
+
+def install_package(pkg_name):
+    sudo('apt --yes install {0}'.format(pkg_name), quiet=True)
 
 
 def loadconfig():
     """
-    Load serverconf.json configuration file and replace environment values with ones defined in it.
+    Load conf.json configuration file and replace environment values with ones defined in it.
     """
+    if env.config_loaded:
+        return
+
+    print_with_attention("Loading configuration")
+
+    require('config_key')  # need to know what environment we're working on
+
     config_file_path = 'conf.json'
 
-    if not os.path.exists(config_file_path):
-        red('Couldn\'t find config file at {0}'.format(config_file_path))
-        return
-    
+    if not path.exists(config_file_path):
+        abort("Couldn\'t find config file at {0}".format(config_file_path))
+
     with open(config_file_path) as conf_file:
         json_config_object = json.load(conf_file)
+        env_config_object = json_config_object.get(env.config_key)
 
-        print(green('Using this configuration:'))
-        for k, v in json_config_object.items():
+        if env_config_object is None:
+            abort("You need to specify what environment I am targeting first")
+
+        print(green("Using this configuration:"))
+        for k, v in env_config_object.items():
             env[k] = v
-            print(green('{0}:{1}'.format(k, v)))
+            print(green("{0} => {1}".format(k, v)))
+
+    env.config_loaded = True
 
 
-def _addsshkey(username):
+def addsshkey(username):
     """
         Copy ssh key to the remote user's home directory. This also sets up the ssh dir in remote ${HOME}
         and sets up proper permissions.
@@ -57,15 +85,22 @@ def _addsshkey(username):
         print(yellow("{username} ssh dir exists, not doing anything".format(username=username)))
 
 
+@task
 def addadminuser():
     """
-        Add an all-powerful admin user as a sudo'er. User is added with a disabled password to be given
-        SSH key only access later. The user is also added as a group of an admin group. If admin group
-        doesn't exist, it is created.
+        Add an all-powerful admin user as a sudo'er
+        User is added with a disabled password to be given SSH key only access later. The user is also
+        added as a group of an admin group. If admin group doesn't exist, it is created.
     """
-    admin_user = env['admin_user']
+
+    loadconfig()
+
+    require('admin_user', 'admin_group')
+
+    admin_user = env.admin_user
+
     user_home = '/home/{username}'.format(username=admin_user)
-    admin_group = env['admin_group']
+    admin_group = env.admin_group
 
     if not exists(user_home):
         sudo('adduser {username} --disabled-password --gecos ""'.format(username=admin_user))
@@ -81,19 +116,29 @@ def addadminuser():
     else:
         print(yellow("{username} user already exists".format(username=admin_user)))
 
-    _addsshkey(admin_user)
+    addsshkey(admin_user)
 
 
+@task
 def securessh():
     """
-    Stop root from ssh'ing in and disallow password authentication. This should be done as last step.
+    Stop root from ssh'ing in and disallow password authentication. This should be done as last step
     """
+    loadconfig()
+
     sed('/etc/ssh/sshd_config', 'PermitRootLogin yes', 'PermitRootLogin no', use_sudo=True)
     sed('/etc/ssh/sshd_config', '#PasswordAuthentication yes', 'PasswordAuthentication no', use_sudo=True)
     sudo('service ssh restart')
 
 
+@task
 def setupfirewall():
+    """
+    Set up a somewhat strict deny-all iptables-based firewall
+    Only Allow 80,443, 22 and ICMP in otherwise deny. Also records all denied requests to monitor for abuse.
+    """
+    loadconfig()
+
     iptables_rules_file = 'iptables.firewall.rules'
     iptables_init_file = '/etc/network/if-pre-up.d/firewall'
 
@@ -112,7 +157,13 @@ def setupfirewall():
     sudo(iptables_init_file)
 
 
+@task
 def installpackages():
+    """
+    Install needed system packages
+    """
+    loadconfig()
+
     pkg_list = [
         # editors and extra
         'emacs24-nox',
@@ -126,9 +177,6 @@ def installpackages():
         'virtualenv',
         'virtualenvwrapper',
 
-        # install logwatch
-    #    'logwatch',
-
         # install fail2ban
         'fail2ban',
 
@@ -141,16 +189,63 @@ def installpackages():
         'postgresql-server-dev-9.5'
     ]
 
+    print_with_attention("Updating and installing packages")
+
     # update package list before starting
-    sudo('apt update')
+    print(green("Updating repos"))
+    sudo('apt update', quiet=True)
 
-    for pkg in pkg_list:
-        _install_package(pkg)
+    for index, pkg_name in enumerate(pkg_list, start=1):
+        print("Installing {0} {1}/{2}".format(pkg_name, index, len(pkg_list)))
+        install_package(pkg_name)
 
 
-def setupnewserver():
-    # don't forget to call loadconfig() first
+@task
+def setupdjangoapp():
+    """
+    Set up a new django app instance
+    """
+    loadconfig()
+
+    require('app_name')
+
+    app_home = '/home/{0}'.format(env.app_name)
+
+    # create the user
+    if not exists(app_home):
+        print(green('Adding application user {0}'.format(env.app_name)))
+        sudo('adduser {username} --disabled-password --disabled-login --gecos ""'.format(username=env.app_name))
+
+        # create an ssh key for the new user
+        sudo('ssh-keygen -f "{0}/.ssh/id_rsa" -t rsa -N ""'.format(app_home), user=env.app_name)
+
+    # setup virtualenv and needed folders
+    with settings(cd(app_home), shell_env(HOME=app_home), sudo_user=env.app_name):
+        sudo('source /etc/bash_completion.d/virtualenvwrapper;mkvirtualenv {0} --python /usr/bin/python3'.format(env.app_name))
+        sudo('mkdir {0}'.format(env.app_name))
+        sudo('mkdir logs')
+        sudo('mkdir static')
+
+    # then create app database and app database user
+    sudo("createdb %(app_name)s" % env, user="postgres")
+    sudo("createuser --no-superuser --no-createdb --no-createrole %(app_name)s" % env, user="postgres")
+
+
+@task
+def setup():
+    """
+    Set up a new machine from a clean slate
+    """
+    loadconfig()
+
     addadminuser()
     securessh()
     setupfirewall()
     installpackages()
+
+
+@task
+def defaultserver():
+    env.config_key = 'default'
+
+    loadconfig()
