@@ -152,7 +152,7 @@ def setupfirewall():
     #!/bin/sh
     /sbin/iptables-restore < /etc/iptables.firewall.rules
     """
-    append(iptables_init_file, iptables_init_text, use_sudo=True)
+    append(iptables_init_file, iptables_init_text.strip(), use_sudo=True)
     sudo('chmod +x %s' % iptables_init_file)
     sudo(iptables_init_file)
 
