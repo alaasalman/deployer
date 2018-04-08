@@ -166,16 +166,16 @@ def installpackages():
 
     pkg_list = [
         # editors and extra
-        'emacs24-nox',
+        'emacs-nox',
         'git',
 
         # process supervisor
         'supervisor',
 
         # python dev package
-        'python-dev',
+        'build-essential',
+        'python3-dev',
         'virtualenv',
-        'virtualenvwrapper',
 
         # install fail2ban
         'fail2ban',
@@ -186,7 +186,11 @@ def installpackages():
         # install postgresql
         'postgresql',
         'postgresql-contrib',
-        'postgresql-server-dev-9.5'
+        'postgresql-server-dev-all',
+
+        # some sweet CLI
+        'zsh',
+        'tmux',
     ]
 
     print_with_attention("Updating and installing packages")
