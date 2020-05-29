@@ -236,6 +236,13 @@ def setupdjangoapp():
                 sudo('mkdir static')
                 # uploaded media files, if any
                 sudo('mkdir media')
+                # download pip installer as per recommendation - admin to install manually
+                sudo('curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py')
+                print("get-pip.py script ready in $HOME")
+                # download poetry installer - admin to install manually
+                sudo('curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -o get-poetry.py')
+                print("get-poetry.py script ready in $HOME")
+
 
     # then create app database and app database user
     sudo("createuser %(app_name)s --pwprompt" % env, user="postgres")
