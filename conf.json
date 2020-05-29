@@ -1,14 +1,21 @@
 {
   "default": {
     "hosts": [
-      "10.0.0.7"
+      "192.168.1.109"
     ],
     "port": 22,
-    "user": "user1",
-    "password": "testpassword",
+    "user": "alaa",
+    "password": "maillist",
     "admin_group": "sudo",
-    "admin_user": "user1",
-    "app_name": "appone"
-
+    "admin_user": "alaa",
+    "app_name": "aussieshopper"
+  },
+  "mylinode": {
+    "hosts": [
+      "173.255.227.159"
+    ],
+    "port": 22,
+    "user": "alaa",
+    "app_name": "swms"
   }
 }

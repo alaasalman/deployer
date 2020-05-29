@@ -245,8 +245,8 @@ def setupdjangoapp():
 
 
     # then create app database and app database user
-    sudo("createuser %(app_name)s --pwprompt" % env, user="postgres")
-    sudo("createdb %(app_name)s --owner=%(app_name)s" % env, user="postgres")
+    sudo('createuser %(app_name)s --pwprompt' % env, user='postgres')
+    sudo('createdb %(app_name)s --owner=%(app_name)s' % env, user='postgres')
 
 
 @task
