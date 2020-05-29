@@ -220,8 +220,11 @@ def setupdjangoapp():
         print(green('Adding application user {0}'.format(env.app_name)))
         sudo('adduser {username} --disabled-password --disabled-login --gecos ""'.format(username=env.app_name))
 
-        # create an ssh key for the new user
-        sudo('ssh-keygen -f "{0}/.ssh/id_rsa" -t rsa -N ""'.format(app_home), user=env.app_name)
+        with settings(sudo_user=env.app_name, quiet=True):
+            # create an ssh key for the new user
+            sudo('ssh-keygen -f "{0}/.ssh/id_rsa" -t rsa -N ""'.format(app_home))
+            print_with_attention("Add this app key as your deploy key")
+            sudo('cat {0}/.ssh/id_rsa.pub'.format(app_home))
 
     # setup virtualenv and needed folders
     with settings(cd(app_home), shell_env(HOME=app_home), sudo_user=env.app_name):
