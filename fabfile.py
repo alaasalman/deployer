@@ -228,6 +228,7 @@ def setupdjangoapp():
 
             # setup virtualenv and needed folders
             with settings(cd(app_home), shell_env(HOME=app_home)):
+                print(green("Getting app user home ready"))
                 # create app dir
                 sudo('mkdir {0}'.format(env.app_name))
                 # for logs, obviously
