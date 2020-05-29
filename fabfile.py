@@ -226,12 +226,16 @@ def setupdjangoapp():
             print_with_attention("Add this app key as your deploy key")
             sudo('cat {0}/.ssh/id_rsa.pub'.format(app_home))
 
-    # setup virtualenv and needed folders
-    with settings(cd(app_home), shell_env(HOME=app_home), sudo_user=env.app_name):
-        sudo('source /etc/bash_completion.d/virtualenvwrapper;mkvirtualenv {0} --python /usr/bin/python3'.format(env.app_name))
-        sudo('mkdir {0}'.format(env.app_name))
-        sudo('mkdir logs')
-        sudo('mkdir static')
+            # setup virtualenv and needed folders
+            with settings(cd(app_home), shell_env(HOME=app_home)):
+                # create app dir
+                sudo('mkdir {0}'.format(env.app_name))
+                # for logs, obviously
+                sudo('mkdir logs')
+                # django's static files
+                sudo('mkdir static')
+                # uploaded media files, if any
+                sudo('mkdir media')
 
     # then create app database and app database user
     sudo("createuser %(app_name)s --pwprompt" % env, user="postgres")
